@@ -46,6 +46,10 @@ public class  TextParser extends AbstractLineBasedParser
         try
         {
             this.lines = splitLines(reader);
+            if (lines.isEmpty())
+            {
+                return null;
+            }
             if(lastLineIsTopModuleLine())
             {
                 swapLastLineToTop();
@@ -54,11 +58,6 @@ public class  TextParser extends AbstractLineBasedParser
         catch (IOException e)
         {
             throw new ParseException(e);
-        }
-
-        if (lines.isEmpty())
-        {
-            return null;
         }
 
         return parseInternal(0);
@@ -78,7 +77,6 @@ public class  TextParser extends AbstractLineBasedParser
     {
         //current node
         final Node node = this.parseLine();
-
         this.lineIndex++;
 
         //children

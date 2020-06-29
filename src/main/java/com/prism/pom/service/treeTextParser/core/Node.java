@@ -78,6 +78,11 @@ public class Node implements Serializable {
     {
     }
 
+    public void setGroupId(String groupId)
+    {
+        this.groupId = groupId;
+    }
+
     public void setScope(String scope)
     {
         this.scope = scope;
