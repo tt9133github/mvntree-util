@@ -44,7 +44,7 @@ public class PomTxtParser extends FileUtil
             //parse properties
             model.setName(path);
             model.setDescription(content);
-            if(model.getGroupId() == null && model.getParent() != null)
+            if (model.getGroupId() == null && model.getParent() != null)
             {
                 model.setGroupId(model.getParent().getGroupId());
             }
@@ -78,7 +78,7 @@ public class PomTxtParser extends FileUtil
                     packageProp.setFile(model.getName());
                     packageProp.setLines(getLineNumberByArtifactIdAndVersion(model.getDescription(), parent.getArtifactId(), parent.getVersion()));
                     packageProp.setValue(parent.getVersion());
-                    depTree.addProp(parent.getGroupId(), packageProp);
+                    depTree.addProp("parent", packageProp);
                     depTree.addDependenciesTree(path, moduleNode);
                 }
                 else
@@ -165,6 +165,7 @@ public class PomTxtParser extends FileUtil
     {
         String content = model.getDescription();
         String path = model.getName();
+        Map<String, PackageProp> propMap = depTree.getPropMap();
 
         Node moduleNode = new Node(model.getGroupId(), model.getArtifactId(), null, null, model.getVersion(), null, null, false);
         depTree.addDependencies(path, moduleNode);
@@ -179,7 +180,7 @@ public class PomTxtParser extends FileUtil
             //find in properties or parent pom
             if (groupId != null && groupId.contains("$"))
             {
-                PackageProp packageProp = getPropState(depTree, d, groupId);
+                PackageProp packageProp = getProp(propMap, groupId);
                 if (packageProp == null)
                 {
                     continue;
@@ -188,43 +189,33 @@ public class PomTxtParser extends FileUtil
             }
             if (artifactId != null && artifactId.contains("$"))
             {
-                PackageProp packageProp = getPropState(depTree, d, artifactId);
+                PackageProp packageProp = getProp(propMap, artifactId);
                 if (packageProp == null)
                 {
                     continue;
                 }
                 artifactId = packageProp.getValue();
             }
-            if (version == null || version.contains("$"))
+            PackageProp packageProp = null;
+            if (version != null && version.contains("$"))
             {
-                PackageProp packageProp = null;
-                if(version == null)
+                packageProp = getProp(propMap, version);
+            }
+            else if (version == null)
+            {
+                //look up management
+                packageProp = propMap.get(groupId + artifactId);
+                if(packageProp == null)
                 {
-                    packageProp = getPropState(depTree, d, groupId + artifactId);
+                    //then look up parent
+                    packageProp = propMap.get("parent");
                 }
-                else
-                {
-                    packageProp = getMvnProperty(depTree.getPropMap(), version);
-                }
-                if (packageProp == null)
-                {
-                    packageProp = depTree.getProp(groupId);
-                    if(packageProp != null)
-                    {
-                        version = packageProp.getValue();
-                        line = packageProp.getLines();
-                        depSourceFile = packageProp.getFile();
-                    }
-                    else
-                    {
-                        //找自己pom内的直接依赖
-                        Dependency nodeInThisTree = getNodeInThisTree(model, groupId, artifactId);
-                        if (nodeInThisTree != null)
-                        {
-                            version = nodeInThisTree.getVersion();
-                        }
-                    }
-                }
+            }
+            if (packageProp != null)
+            {
+                version = packageProp.getValue();
+                line = packageProp.getLines();
+                depSourceFile = packageProp.getFile();
             }
             if (depSourceFile == null)
             {
@@ -233,50 +224,19 @@ public class PomTxtParser extends FileUtil
             }
             Node depNode = new Node(groupId, artifactId, null, null, version, d.getScope() == null ? "" : d.getScope(), null, false);
             depNode.setPath(depSourceFile + ":" + line);
-            if (isModule(depTree, d))
+            /*if (isModule(depTree, d))
             {
                 depNode = depTree.getModule(d.getGroupId(), d.getArtifactId());
-            }
+            }*/
             module.addChildNode(depNode);
             //depTree.addDependencies(path, depNode);
         }
         return module;
     }
 
-    private Dependency getNodeInThisTree(Model model, String groupId, String artifactId)
-    {
-        for (Dependency d : model.getDependencies())
-        {
-            if (groupId.equals(d.getGroupId()) && artifactId.equals(d.getArtifactId()))
-            {
-                return d;
-            }
-        }
-        return null;
-    }
-
-    private PackageProp getPropState(DepTree depTree, Dependency d, String statement)
-    {
-        PackageProp packageProp = getMvnProperty(depTree.getPropMap(), statement);
-        if (packageProp == null)
-        {
-            packageProp = depTree.getProp(d.getGroupId());
-        }
-        return packageProp;
-    }
-
-    private PackageProp getMvnProperty(Map<String, PackageProp> propMap, String statement)
+    private PackageProp getProp(Map<String, PackageProp> propMap, String statement)
     {
         PackageProp packageProp = propMap.get(MatchUtil.matchColumn(statement, "\\$\\{(\\S+)\\}"));
-        /*if (d.getVersion() == null)
-        {
-            packageProp = propMap.get(d.getGroupId() + d.getArtifactId());
-            if (packageProp == null)
-            {
-                packageProp = propMap.get(d.getGroupId());
-            }
-        }*/
-
         return packageProp;
     }
 
@@ -368,16 +328,6 @@ public class PomTxtParser extends FileUtil
             }
         }
     }
-
-    private static Node getModuleNode(Node node)
-    {
-        if (node.getScope() == null)
-        {
-            return node;
-        }
-        return getModuleNode(node.getParent());
-    }
-
 
     private static boolean isCommentLine(String line)
     {

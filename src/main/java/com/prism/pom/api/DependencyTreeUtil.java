@@ -22,7 +22,7 @@ public class DependencyTreeUtil
         JSONObject result = new JSONObject();
         List<Node> trees = mvnTreeCommandParser.mvntreeParse(depManagerFiles, mvnHome);
         DepTree depTree = pomTxtParser.parseRepoFiles(depManagerFiles);
-        for(Node node : trees)
+        for (Node node : trees)
         {
             resetNodePath(depTree, node);
         }
@@ -44,35 +44,52 @@ public class DependencyTreeUtil
 
     private void resetNodePath(DepTree depTree, Node node)
     {
-        Node moduleNode = depTree.getModule(node.getGroupId(), node.getArtifactId());
-        if(moduleNode != null)
+        Node moduleNode = null;
+        if (node.getScope() == null)
         {
+            moduleNode = depTree.getModule(node.getGroupId(), node.getArtifactId());
             node.setPath(moduleNode.getPath());
-            for(Node child : node.getChildNodes())
-            {
-                resetNodePath(depTree, child);
-            }
+           for(Node dep : node.getChildNodes())
+           {
+               resetNodePath(depTree, dep);
+           }
         }
         else
         {
             Node topNode = getThisNodeModule(node);
             moduleNode = depTree.getModule(topNode.getGroupId(), topNode.getArtifactId());
-            Node txtParsedNode = depTree.getDependency(moduleNode.getPath(), node.getGroupId(), node.getArtifactId());
-            if (txtParsedNode != null)
+            Node txtParsedNode = findNodeInThisModule(moduleNode, node);
+            if (txtParsedNode == null)
             {
-                setAllNodesPath(node, txtParsedNode.getPath());
+                System.out.println("error");
             }
             else
             {
-                setAllNodesPath(node, topNode.getPath());
+                setAllNodesPath(node, txtParsedNode.getPath());
             }
         }
+    }
+
+    private Node findNodeInThisModule(Node moduleNode, Node node)
+    {
+        if (moduleNode.getGroupId().equals(node.getGroupId()) && moduleNode.getArtifactId().equals(node.getArtifactId()))
+        {
+            return moduleNode;
+        }
+        for (Node child : moduleNode.getChildNodes())
+        {
+            if (child.getGroupId().equals(node.getGroupId()) && child.getArtifactId().equals(node.getArtifactId()))
+            {
+                return child;
+            }
+        }
+        return null;
     }
 
     private void setAllNodesPath(Node node, String path)
     {
         node.setPath(path);
-        for(Node child : node.getChildNodes())
+        for (Node child : node.getChildNodes())
         {
             setAllNodesPath(child, path);
         }
@@ -80,9 +97,9 @@ public class DependencyTreeUtil
 
     private Node getThisNodeModule(Node node)
     {
-        if(node.getScope() != null)
+        if (node.getScope() != null)
         {
-           return getThisNodeModule(node.getParent());
+            return getThisNodeModule(node.getParent());
         }
         return node;
     }
@@ -97,39 +114,5 @@ public class DependencyTreeUtil
         return JSONObject.parseObject(jsonStr);
     }
 
-    public static void main(String[] args) throws Exception
-    {
-        String mavenHome = "C:\\Program Files\\JetBrains\\IntelliJ IDEA 2019.2.3\\plugins\\maven\\lib\\maven3";
-        String projectPath = "C:\\code\\test\\guns";
-        JSONArray filesArray = new JSONArray();
-        addPomToArray(projectPath, new File(projectPath), filesArray);
-
-        JSONObject input = new JSONObject();
-        input.put("files", filesArray);
-
-        DependencyTreeUtil d = new DependencyTreeUtil();
-        String resultJson = d.pomparse(input.toJSONString(), mavenHome);
-        JSONObject result = (JSONObject) JSONObject.parse(resultJson);
-
-        System.out.println(result);
-    }
-
-    private static void addPomToArray(String originalPath, File file, JSONArray files)
-    {
-        for(File f : file.listFiles())
-        {
-            if(f.isDirectory())
-            {
-                addPomToArray(originalPath, f, files);
-            }
-            if(f.getPath().contains("pom.xml"))
-            {
-                JSONObject json = new JSONObject();
-                json.put("path", f.getAbsolutePath().replace(originalPath, ""));
-                json.put("content", FileUtil.getFileContent(f));
-                files.add(json);
-            }
-        }
-    }
 
 }

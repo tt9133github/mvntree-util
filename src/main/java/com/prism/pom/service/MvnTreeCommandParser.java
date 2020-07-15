@@ -33,7 +33,7 @@ public class MvnTreeCommandParser extends FileUtil
             Reader fr = new StringReader(content.trim());
             MavenXpp3Reader xpp3Reader = new MavenXpp3Reader();
             Model model = xpp3Reader.read(fr);
-            boolean isMulti = model.getModules() != null;
+            boolean isMulti = !(model.getModules() == null || model.getModules().isEmpty());
             if (isParsed(trees, model.getArtifactId()))
             {
                 continue;
